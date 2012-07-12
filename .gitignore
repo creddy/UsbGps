@@ -1,5 +1,6 @@
 /bin
 /gen
+.metadata
 #*.dex
 #*.apk
 #resources.ap_

@@ -136,10 +136,10 @@ public class BlueetoothGpsManager {
 				long now = SystemClock.uptimeMillis();
 				long lastRead = now;
 				while((enabled) && (now < lastRead+30000 )){
-					if (reader.ready()){
-						s = reader.readLine();
+					//if (reader.ready()){
+					if ((s = reader.readLine()) != null){
 						Log.v(LOG_TAG, "data: "+System.currentTimeMillis()+" "+s);
-						notifyNmeaSentence(s+"\r\n");
+						notifyNmeaSentence(s);
 						ready = true;
 						lastRead = SystemClock.uptimeMillis();
 					} else {
@@ -149,7 +149,10 @@ public class BlueetoothGpsManager {
 					now = SystemClock.uptimeMillis();
 				}
 			} catch (IOException e) {
-				Log.e(LOG_TAG, "error while getting data", e);
+				Log.e(LOG_TAG, "error while getting data: " + e.getMessage(), e);
+				setMockLocationProviderOutOfService();
+			} catch (Exception e) {
+				Log.e(LOG_TAG, "error while getting data: " + e.getMessage(), e);
 				setMockLocationProviderOutOfService();
 			} finally {
 				// cleanly closing everything...
@@ -344,7 +347,6 @@ public class BlueetoothGpsManager {
 			        	disable(R.string.msg_bluetooth_gps_unavaible);
 					} else {
 						Runnable connectThread = new Runnable() {							
-							@Override
 							public void run() {
 								try {
 									connected = false;
@@ -615,7 +617,6 @@ public class BlueetoothGpsManager {
 //				Log.e(LOG_TAG, "Error while stoping GPS: ", e);
 //			}
 			Runnable closeAndShutdown = new Runnable() {				
-				@Override
 				public void run(){
 					try {
 						connectionAndReadingPool.awaitTermination(10, TimeUnit.SECONDS);
@@ -788,7 +789,6 @@ public class BlueetoothGpsManager {
 				synchronized(nmeaListeners) {
 					for(final NmeaListener listener : nmeaListeners){
 						notificationPool.execute(new Runnable(){
-							@Override
 							public void run() {
 								listener.onNmeaReceived(timestamp, recognizedSentence);
 							}					 
@@ -855,7 +855,7 @@ public class BlueetoothGpsManager {
 	 * @param sentence	the NMEA sentence without the first "$", the last "*" and the checksum.
 	 */
 	public void sendNmeaCommand(String sentence){
-		String command = String.format((Locale)null,"$%s*%X\r\n", sentence, parser.computeChecksum(sentence));
+		String command = String.format((Locale)null,"$%s*%X\r\n", sentence, NmeaParser.checkSum(sentence));
 		sendPackagedNmeaCommand(command);
 	}
 

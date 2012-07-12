@@ -171,13 +171,11 @@ public class BluetoothGpsActivity extends PreferenceActivity implements OnPrefer
 		builder.show();
 	}
 
-	@Override
 	public boolean onPreferenceChange(Preference preference, Object newValue) {
 		// TODO Auto-generated method stub
 		return false;
 	}
 
-	@Override
 	public void onSharedPreferenceChanged(SharedPreferences sharedPreferences, String key) {
 		if (BluetoothGpsProviderService.PREF_START_GPS_PROVIDER.equals(key)){
 			boolean val = sharedPreferences.getBoolean(key, false);

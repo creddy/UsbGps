@@ -471,12 +471,10 @@ public class BluetoothGpsProviderService extends Service implements NmeaListener
 		return null;
 	}
 
-	@Override
 	public void onLocationChanged(Location location) {
 		// TODO Auto-generated method stub
 	}
 
-	@Override
 	public void onProviderDisabled(String provider) {
 		Log.i(LOG_TAG, "The GPS has been disabled.....stopping the NMEA tracker service.");
 		stopSelf();

@@ -28,6 +28,9 @@ import java.util.TimeZone;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import java.util.HashMap;
+import java.util.Map;
+
 import android.location.Criteria;
 import android.location.Location;
 import android.location.LocationManager;
@@ -215,17 +218,16 @@ public class NmeaParser {
 	public String parseNmeaSentence(String gpsSentence) throws SecurityException {
 		String nmeaSentence = null;
 		Log.v(LOG_TAG, "data: "+System.currentTimeMillis()+" "+gpsSentence);
-		Pattern xx = Pattern.compile("\\$([^*$]*)\\*([0-9A-F][0-9A-F])?\r\n");
-		Matcher m = xx.matcher(gpsSentence);
-		if (m.matches()){
-			nmeaSentence = m.group(0);
-			String sentence = m.group(1);
-			String checkSum = m.group(2);
-			Log.v(LOG_TAG, "data: "+System.currentTimeMillis()+" "+sentence+" cheksum; "+checkSum +" control: "+String.format("%X",computeChecksum(sentence)));
-			SimpleStringSplitter splitter = new TextUtils.SimpleStringSplitter(',');
-			splitter.setString(sentence);
-			String command = splitter.next();
-			if (command.equals("GPGGA")){
+		//Pattern xx = Pattern.compile("\\$([^*$]*)\\*([0-9A-F][0-9A-F])?\r\n");
+		//Matcher m = xx.matcher(gpsSentence);
+		if (gpsSentence.startsWith("$")){
+			if (!validateCheckSum(gpsSentence))
+				return null;
+			nmeaSentence = gpsSentence.substring(1);
+			String[] tokens = nmeaSentence.split(",");
+			Log.v(LOG_TAG, "data: "+System.currentTimeMillis()+" "+nmeaSentence);
+
+			if (tokens[0].equals("GPGGA") && (tokens.length >= 11)){
 				/* $GPGGA,123519,4807.038,N,01131.000,E,1,08,0.9,545.4,M,46.9,M,,*47
 					
 					Where:
@@ -252,15 +254,15 @@ public class NmeaParser {
 					     *47          the checksum data, always begins with *
 				 */
 				// UTC time of fix HHmmss.S
-				String time = splitter.next();
+				String time = tokens[1];
 				// latitude ddmm.M
-				String lat = splitter.next();
+				String lat = tokens[2];
 				// direction (N/S)
-				String latDir = splitter.next();
+				String latDir = tokens[3];
 				// longitude dddmm.M
-				String lon = splitter.next();
+				String lon = tokens[4];
 				// direction (E/W)
-				String lonDir = splitter.next();
+				String lonDir = tokens[5];
 				/* fix quality: 
 				  	0= invalid
 					1 = GPS fix (SPS)
@@ -272,15 +274,15 @@ public class NmeaParser {
 					7 = Manual input mode
 					8 = Simulation mode
 				 */			 
-				String quality = splitter.next();
+				String quality = tokens[6];
 				// Number of satellites being tracked
-				String nbSat = splitter.next();
+				String nbSat = tokens[7];
 				// Horizontal dilution of position (float)
-				String hdop = splitter.next();
+				String hdop = tokens[8];
 				// Altitude, Meters, above mean sea level
-				String alt = splitter.next();
+				String alt = tokens[9];
 				// Height of geoid (mean sea level) above WGS84 ellipsoid
-				String geoAlt = splitter.next();
+				String geoAlt = tokens[10];
 				// time in seconds since last DGPS update
 				// DGPS station ID number
 				if (quality != null && !quality.equals("") && !quality.equals("0") ){
@@ -324,7 +326,7 @@ public class NmeaParser {
 						notifyStatusChanged(LocationProvider.TEMPORARILY_UNAVAILABLE, null, updateTime);
 					}				
 				}
-			} else if (command.equals("GPRMC")){
+			} else if (tokens[0].equals("GPRMC") && (tokens.length >= 12)){
 				/* $GPRMC,123519,A,4807.038,N,01131.000,E,022.4,084.4,230394,003.1,W*6A
 	
 				   Where:
@@ -340,27 +342,27 @@ public class NmeaParser {
 				     *6A          The checksum data, always begins with *
 				*/
 				// UTC time of fix HHmmss.S
-				String time = splitter.next();
+				String time = tokens[1];
 				// fix status (A/V)
-				String status = splitter.next();
+				String status = tokens[2];
 				// latitude ddmm.M
-				String lat = splitter.next();
+				String lat = tokens[3];
 				// direction (N/S)
-				String latDir = splitter.next();
+				String latDir = tokens[4];
 				// longitude dddmm.M
-				String lon = splitter.next();
+				String lon = tokens[5];
 				// direction (E/W)
-				String lonDir = splitter.next();
+				String lonDir = tokens[6];
 				// Speed over the ground in knots		 
-				String speed = splitter.next();
+				String speed = tokens[7];
 				// Track angle in degrees True
-				String bearing = splitter.next();
+				String bearing = tokens[8];
 				// UTC date of fix DDMMYY
-				String date = splitter.next();
+				String date = tokens[9];
 				// Magnetic Variation ddd.D
-				String magn = splitter.next();
+				String magn = tokens[10];
 				// Magnetic variation direction (E/W)
-				String magnDir = splitter.next();
+				String magnDir = tokens[11];
 				// for NMEA 0183 version 3.00 active the Mode indicator field is added
 				// Mode indicator, (A=autonomous, D=differential, E=Estimated, N=not valid, S=Simulator )
 				if (status != null && !status.equals("") && status.equals("A") ){
@@ -399,7 +401,7 @@ public class NmeaParser {
 						notifyStatusChanged(LocationProvider.TEMPORARILY_UNAVAILABLE, null, updateTime);
 					}				
 				}		
-			} else if (command.equals("GPGSA")){
+			} else if (false){ //(tokens[0].equals("GPGSA")){
 				/*  $GPGSA,A,3,04,05,,09,12,,,24,,,,,2.5,1.3,2.1*39
 	
 					Where:
@@ -415,20 +417,17 @@ public class NmeaParser {
 					     *39      the checksum data, always begins with *
 				 */
 				// mode : A Auto selection of 2D or 3D fix / M = manual
-				String mode = splitter.next();
+				String mode = tokens[1];
 				// fix type  : 1 - no fix / 2 - 2D / 3 - 3D
-				String fixType = splitter.next();
+				String fixType = tokens[2];
 				// discard PRNs of satellites used for fix (space for 12) 
-				for (int i=0 ; ((i<12)&&(! "1".equals(fixType)))  ; i++){
-					splitter.next();
-				}
 				// Position dilution of precision (float)
-				String pdop = splitter.next();
+				String pdop = tokens[15];
 				// Horizontal dilution of precision (float)
-				String hdop = splitter.next();
+				String hdop = tokens[16];
 				// Vertical dilution of precision (float)
-				String vdop = splitter.next();			
-			} else if (command.equals("GPVTG")){
+				String vdop = tokens[17];			
+			} else if (false){ //(tokens[0].equals("GPVTG")){
 				/*  $GPVTG,054.7,T,034.4,M,005.5,N,010.2,K*48
 					
 					where:
@@ -440,24 +439,20 @@ public class NmeaParser {
 					        *48          Checksum
 				 */
 				// Track angle in degrees True
-				String bearing = splitter.next();
+				String bearing = tokens[1];
 				// T
-				splitter.next();
 				// Magnetic track made good
-				String magn = splitter.next();
+				String magn = tokens[3];
 				// M
-				splitter.next();
 				// Speed over the ground in knots		 
-				String speedKnots = splitter.next();
+				String speedKnots = tokens[5];
 				// N
-				splitter.next();
 				// Speed over the ground in Kilometers per hour		 
-				String speedKm = splitter.next();
+				String speedKm = tokens[7];
 				// K
-				splitter.next();
 				// for NMEA 0183 version 3.00 active the Mode indicator field is added
 				// Mode indicator, (A=autonomous, D=differential, E=Estimated, N=not valid, S=Simulator )
-			} else if (command.equals("GPGLL")){
+			} else if (false){ //(tokens[0].equals("GPGLL")){
 				/*  $GPGLL,4916.45,N,12311.12,W,225444,A,*1D
 					
 					Where:
@@ -469,17 +464,17 @@ public class NmeaParser {
 					     *iD          checksum data
 				 */
 				// latitude ddmm.M
-				String lat = splitter.next();
+				String lat = tokens[1];
 				// direction (N/S)
-				String latDir = splitter.next();
+				String latDir = tokens[2];
 				// longitude dddmm.M
-				String lon = splitter.next();
+				String lon = tokens[3];
 				// direction (E/W)
-				String lonDir = splitter.next();
+				String lonDir = tokens[4];
 				// UTC time of fix HHmmss.S
-				String time = splitter.next();
+				String time = tokens[5];
 				// fix status (A/V)
-				String status = splitter.next();
+				String status = tokens[6];
 				// for NMEA 0183 version 3.00 active the Mode indicator field is added
 				// Mode indicator, (A=autonomous, D=differential, E=Estimated, N=not valid, S=Simulator )
 			}
@@ -553,11 +548,47 @@ public class NmeaParser {
 		}
 		return timestamp;
 	}
-	public byte computeChecksum(String s){
-		byte checksum = 0;
-		for (char c : s.toCharArray()){
-			checksum ^= (byte)c;			
+	
+	 static public boolean validateCheckSum(String msg) 
+	 {
+	 		int msglen = msg.length();
+	 		if ( msglen  > 4 )
+	 		{
+	 			if ( msg.charAt( msglen - 3 ) == '*' )
+	 			{
+	 				// perform NMEA checksum calculation
+	 				String chk_s = checkSum( msg.substring( 0, msglen - 3 ) );
+	 				Log.v(LOG_TAG, "Given Checksum: " + msg.substring( msglen - 2, msglen ) + " Computed: " + chk_s);
+	 				// compare checksum to encoded checksum in msg
+	 				boolean valid = ( msg.substring( msglen - 2, msglen ).equals( chk_s ) );
+	 				if (!valid)
+	 					Log.e(LOG_TAG, "Invalid Checksum: Given: " + msg.substring( msglen - 2, msglen ) + " Computed: " + chk_s);
+	 				return valid;
+	 			}
+	 			else
+	 			{
+	 				// message doesn't have a checksum: accept it
+	 				return true;
+	 			}
+	 		}
+	 		// don't accept messages without checksum
+	 		return false;
+	 }
+	 
+	static public String checkSum(String msg) 
+	{
+		// perform NMEA checksum calculation
+		int chk = 0;
+		for ( int i = 1; i <  msg.length(); i++ )
+		{
+			chk ^= msg.charAt( i );
 		}
-		return checksum;
+		String chk_s = Integer.toHexString( chk ).toUpperCase();
+		// checksum must be 2 characters!
+		while ( chk_s.length() <  2 )
+		{
+			chk_s = "0" + chk_s;
+		}
+		return chk_s;
 	}
 }
